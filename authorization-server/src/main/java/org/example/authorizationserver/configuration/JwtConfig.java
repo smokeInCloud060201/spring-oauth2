@@ -17,16 +17,13 @@ import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.util.UUID;
 
-@Configuration
 public class JwtConfig {
 
-    @Bean
     public JwtEncoder jwtEncoder() {
         JWKSet jwkSet = new JWKSet(generateRsaKey());
         return new NimbusJwtEncoder(new ImmutableJWKSet<>(jwkSet));
     }
 
-    @Bean
     public JwtDecoder jwtDecoder() throws JOSEException {
         return NimbusJwtDecoder.withPublicKey(generateRsaKey().toRSAPublicKey()).build();
     }

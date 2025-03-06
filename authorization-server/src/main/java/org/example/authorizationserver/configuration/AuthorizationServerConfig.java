@@ -4,31 +4,27 @@ import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
-import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
+import org.example.authorizationserver.service.AuthorizationService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
-import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
-import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.core.OAuth2AccessToken;
-import org.springframework.security.oauth2.core.OAuth2Token;
 import org.springframework.security.oauth2.core.oidc.OidcScopes;
-import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
-import org.springframework.security.oauth2.server.authorization.authentication.OAuth2ClientAuthenticationToken;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.server.authorization.client.InMemoryRegisteredClientRepository;
+import org.springframework.security.oauth2.server.authorization.client.JdbcRegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
@@ -40,19 +36,21 @@ import org.springframework.security.oauth2.server.authorization.settings.TokenSe
 import org.springframework.security.oauth2.server.authorization.token.*;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
-import org.springframework.util.StringUtils;
 
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
+import java.time.Duration;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Configuration
 @EnableWebSecurity
+@RequiredArgsConstructor
 public class AuthorizationServerConfig {
+
+    private final AuthorizationService authorizationService;
+
     @Bean
     @Order(Ordered.HIGHEST_PRECEDENCE)
     public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http) throws Exception {
@@ -63,14 +61,14 @@ public class AuthorizationServerConfig {
                 .cors(AbstractHttpConfigurer::disable)
                 .csrf(AbstractHttpConfigurer::disable)
                 .securityMatcher(authorizationServerConfigurer.getEndpointsMatcher())
-                .with(authorizationServerConfigurer, (authorizationServer) ->
-                        authorizationServer
-                                .oidc(Customizer.withDefaults())	// Enable OpenID Connect 1.0
+                .authorizeHttpRequests(authorizationManagerRequestMatcherRegistry -> authorizationManagerRequestMatcherRegistry
+                        .requestMatchers("/oauth2/**").permitAll())
+                .with(authorizationServerConfigurer, authorizationServer -> authorizationServer
+                        .oidc(Customizer.withDefaults())
+                        .clientAuthentication(Customizer.withDefaults())
                 )
-                .authorizeHttpRequests((authorize) ->
-                        authorize
-                                .anyRequest().authenticated()
-                );
+                .authorizeHttpRequests(authorize ->
+                        authorize.anyRequest().authenticated());
 
         return http.build();
     }
@@ -99,6 +97,7 @@ public class AuthorizationServerConfig {
                 .scope(OidcScopes.OPENID)
                 .scope(OidcScopes.PROFILE)
                 .tokenSettings(TokenSettings.builder()
+                        .accessTokenTimeToLive(Duration.ofHours(1))
                         .accessTokenFormat(OAuth2TokenFormat.REFERENCE)
                         .build())
                 .clientSettings(ClientSettings.builder().requireAuthorizationConsent(true).build())
@@ -109,9 +108,9 @@ public class AuthorizationServerConfig {
 
     @Bean
     public UserDetailsService userDetailsService(PasswordEncoder passwordEncoder) {
-        var userDetails = User.withDefaultPasswordEncoder()
+        var userDetails = User.builder()
                 .username("user")
-                .password("password")
+                .password(passwordEncoder.encode("password"))
                 .roles("USER")
                 .build();
 
@@ -119,22 +118,33 @@ public class AuthorizationServerConfig {
     }
 
     @Bean
-    public OAuth2TokenGenerator<OAuth2AccessToken> tokenGenerator(OAuth2TokenCustomizer<OAuth2TokenClaimsContext> jwtTokenCustomizer) {
+    public OAuth2TokenGenerator<OAuth2AccessToken> tokenGenerator() {
         OAuth2AccessTokenGenerator accessTokenGenerator = new OAuth2AccessTokenGenerator();
-        accessTokenGenerator.setAccessTokenCustomizer(context -> {
-            context.getClaims();
-            System.out.println(context);
-        });
         return accessTokenGenerator;
     }
-
 
 
     @Bean
     public AuthorizationServerSettings authorizationServerSettings() {
         return AuthorizationServerSettings.builder()
-                .issuer("http://localhost:9090") // Set issuer URL
+                .authorizationEndpoint("/oauth2/v1/authorize")
+                .deviceAuthorizationEndpoint("/oauth2/v1/device_authorization")
+                .deviceVerificationEndpoint("/oauth2/v1/device_verification")
+                .tokenEndpoint("/oauth2/v1/token")
+                .tokenIntrospectionEndpoint("/oauth2/v1/introspect")
+                .tokenRevocationEndpoint("/oauth2/v1/revoke")
+                .jwkSetEndpoint("/oauth2/v1/jwks")
+                .oidcLogoutEndpoint("/connect/v1/logout")
+                .oidcUserInfoEndpoint("/connect/v1/userinfo")
+                .oidcClientRegistrationEndpoint("/connect/v1/register")
+                .issuer("http://localhost:9090")
                 .build();
+    }
+
+    @Bean
+    public RegisteredClientRepository registeredClientRepository() {
+
+        return new JdbcRegisteredClientRepository()
     }
 
     @Bean
@@ -148,6 +158,11 @@ public class AuthorizationServerConfig {
                 .build();
         JWKSet jwkSet = new JWKSet(rsaKey);
         return (jwkSelector, securityContext) -> jwkSelector.select(jwkSet);
+    }
+
+    @Bean
+    public JwtDecoder jwtDecoder(JWKSource<SecurityContext> jwkSource) {
+        return OAuth2AuthorizationServerConfiguration.jwtDecoder(jwkSource);
     }
 
     private static KeyPair generateRsaKey() {

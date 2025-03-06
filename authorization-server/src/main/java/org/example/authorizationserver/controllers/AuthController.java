@@ -9,9 +9,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.OAuth2AccessToken;
+import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
@@ -29,6 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -85,6 +89,10 @@ public class AuthController {
 
         // Find a client that supports authorization code
         RegisteredClient registeredClient = registeredClientRepository.findByClientId("user-client");
+
+        List<? extends GrantedAuthority> grantedAuthorityMap = List.of(new SimpleGrantedAuthority("ROLE_USER"));
+        Map<String, Object> attributes = new HashMap<>();
+        attributes.put("sub", username);
 
         // Create token generation context
         DefaultOAuth2TokenContext tokenContext = DefaultOAuth2TokenContext.builder()
