@@ -1,9 +1,42 @@
 server:
-  port: 9090
+  port: 9000
 
 spring:
   application:
     name: authorization-server
+  datasource:
+    password: admin123
+    username: root
+    url: jdbc:postgresql://localhost:5434/oauth2
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+  security:
+    oauth2:
+      authorizationserver:
+        issuer: http://localhost:9000
+        client:
+          articles-client:
+            registration:
+              client-id: articles-client
+              client-secret: "{noop}secret"
+              client-name: Articles Client
+              client-authentication-methods:
+                - client_secret_basic
+              authorization-grant-types:
+                - authorization_code
+                - refresh_token
+              redirect-uris:
+                - http://127.0.0.1:8080/login/oauth2/code/articles-client-oidc
+                - http://127.0.0.1:8080/authorized
+              scopes:
+                - openid
+                - articles.read
+
 logging:
   level:
     org:

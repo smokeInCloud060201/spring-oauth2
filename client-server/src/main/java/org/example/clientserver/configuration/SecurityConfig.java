@@ -7,6 +7,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientProvider;
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizedClientRepository;
+import org.springframework.security.oauth2.client.web.reactive.function.client.ServletOAuth2AuthorizedClientExchangeFilterFunction;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientProviderBuilder;
@@ -15,46 +16,48 @@ import org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizedCli
 import org.springframework.security.oauth2.client.web.OAuth2LoginAuthenticationFilter;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
+import org.springframework.web.reactive.function.client.WebClient;
+
+import static org.springframework.security.config.Customizer.withDefaults;
 
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
-
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http,
-                                                   ClientRegistrationRepository clientRegistrationRepository) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/", "/login/**", "/error").permitAll()
-                        .anyRequest().authenticated()
+                .authorizeHttpRequests(authorizeRequests ->
+                        authorizeRequests.anyRequest().authenticated()
                 )
-                .oauth2Login(oauth2 -> oauth2
-                        .loginPage("/login")
-                )
-                .oauth2Client(Customizer.withDefaults())
-                .exceptionHandling(exceptions ->
-                        exceptions.authenticationEntryPoint(new LoginUrlAuthenticationEntryPoint("/login"))
-                );
-
+                .oauth2Login(oauth2Login ->
+                        oauth2Login.loginPage("/oauth2/authorization/articles-client-oidc"))
+                .oauth2Client(withDefaults());
         return http.build();
     }
 
+
     @Bean
-    public OAuth2AuthorizedClientManager authorizedClientManager(
+    WebClient webClient(OAuth2AuthorizedClientManager authorizedClientManager) {
+        ServletOAuth2AuthorizedClientExchangeFilterFunction oauth2Client =
+                new ServletOAuth2AuthorizedClientExchangeFilterFunction(authorizedClientManager);
+        return WebClient.builder()
+                .apply(oauth2Client.oauth2Configuration())
+                .build();
+    }
+
+    @Bean
+    OAuth2AuthorizedClientManager authorizedClientManager(
             ClientRegistrationRepository clientRegistrationRepository,
             OAuth2AuthorizedClientRepository authorizedClientRepository) {
 
-        OAuth2AuthorizedClientProvider authorizedClientProviderBuilder = OAuth2AuthorizedClientProviderBuilder.builder()
-                .authorizationCode()
-                .refreshToken()
-                .clientCredentials()
-                .build();
-
+        OAuth2AuthorizedClientProvider authorizedClientProvider =
+                OAuth2AuthorizedClientProviderBuilder.builder()
+                        .authorizationCode()
+                        .refreshToken()
+                        .build();
         DefaultOAuth2AuthorizedClientManager authorizedClientManager = new DefaultOAuth2AuthorizedClientManager(
-                clientRegistrationRepository,
-                authorizedClientRepository
-        );
-        authorizedClientManager.setAuthorizedClientProvider(authorizedClientProviderBuilder);
+                clientRegistrationRepository, authorizedClientRepository);
+        authorizedClientManager.setAuthorizedClientProvider(authorizedClientProvider);
 
         return authorizedClientManager;
     }
