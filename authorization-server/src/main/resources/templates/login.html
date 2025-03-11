@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="https://www.thymeleaf.org" lang="en">
+<head>
+    <title>Please Log In</title>
+    <link rel="stylesheet" href="/css/login.css"/>
+    <script type="text/javascript" src="/js/index.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+</head>
+<body>
+
+<img src="https://upload.wikimedia.org/wikipedia/commons/7/7a/Logonetflix.png" class="logo" alt="Image">
+
+<form method="post" action="/login">
+    <h3>Sign In</h3>
+    <div class="fields">
+        <div class="inputbox">
+            <label>Email or phone number</label>
+            <input type="text" name="username" class="email" placeholder="Email or phone number">
+            <p class="msg"></p>
+        </div>
+        <div class="inputbox">
+            <label>Password</label>
+            <input type="password" name="password" class="password" placeholder="Password">
+            <p class="msg"></p>
+        </div>
+    </div>
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+    <input type="submit" value="sign in" class="submit">
+
+    <div class="helpBox">
+        <div class="checkBox">
+            <input type="checkbox" id="rem">
+            <label for="rem">Remember me</label>
+        </div>
+
+        <a href="##">Need help?</a>
+    </div>
+
+    <p class="sign">
+        New to Netflix?
+        <a href="##">Sign up now</a>.
+    </p>
+
+    <p class="msg">This page is protected by Google reCAPTCHA to ensure you're not a bot. <a href="##">Learn more.</a>
+    </p>
+</form>
+</body>
+</html>

@@ -2,6 +2,11 @@ server:
   port: 9000
 
 spring:
+  web:
+    resources:
+      static-locations: classpath:/static/
+  thymeleaf:
+    prefix: classpath:/templates/
   application:
     name: authorization-server
   datasource:
@@ -20,6 +25,18 @@ spring:
       authorizationserver:
         issuer: http://localhost:9000
         client:
+          m2m-client:
+            registration:
+              client-id: m2m-client
+              client-secret: "{noop}m2m-secret"
+              client-name: Machine to Machine Client
+              client-authentication-methods:
+                - client_secret_basic
+              authorization-grant-types:
+                - client_credentials
+              scopes:
+                - articles.read
+                - articles.write
           articles-client:
             registration:
               client-id: articles-client
